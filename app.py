@@ -7,7 +7,7 @@ def hello_world():
     return 'Hello, World!'
 
 @app.route('/onepoint')
-def hello_world():
+def onepoint():
     return 'Hello, onepoint'
 
 if __name__ == '__main__':
