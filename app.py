@@ -5,7 +5,6 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-db = firestore.client()
 
 @app.route('/', methods=['GET', 'POST'])
 def create_project():
@@ -18,16 +17,6 @@ def create_project():
 
         budget = 15
         end_date = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
-
-        doc_ref = db.collection(u'projects').document(full_name)
-        doc_ref.set({
-            u'full_name': full_name,
-            u'first_name': first_name,
-            u'last_name': last_name,
-            u'email': email,
-            u'budget': budget,
-            u'end_date': end_date
-        })
         
         return f"Project {full_name} created successfully with email {email}."
     
