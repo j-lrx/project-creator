@@ -1,7 +1,5 @@
 from flask import Flask, request
 from datetime import datetime, timedelta
-import firebase_admin
-from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
