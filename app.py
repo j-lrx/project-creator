@@ -11,7 +11,7 @@ def create_project():
         last_name = request.form['last_name']
         email = request.form['email']
         
-        full_name = f"{first_name.lower().replace(' ', '-')}_{last_name.lower().replace(' ', '-')}"
+        full_name = f"{first_name.lower().replace(' ', '-')}-{last_name.lower().replace(' ', '-')}"
 
         budget = 15
         end_date = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
