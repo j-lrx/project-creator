@@ -1,37 +1,81 @@
-from flask import Flask, request
-from datetime import datetime, timedelta
+import sys
 
+from flask import Flask
 app = Flask(__name__)
 
+CERTS = None
+AUDIENCE = None
 
-@app.route('/', methods=['GET', 'POST'])
-def create_project():
-    if request.method == 'POST':
-        first_name = request.form['first_name']
-        last_name = request.form['last_name']
-        email = request.form['email']
-        
-        full_name = f"{first_name.lower().replace(' ', '-')}-{last_name.lower().replace(' ', '-')}"
+def certs():
+    """Returns a dictionary of current Google public key certificates for
+    validating Google-signed JWTs. Since these change rarely, the result
+    is cached on first request for faster subsequent responses.
+    """
+    import requests
 
-        budget = 15
-        end_date = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
-        
-        return f"Project {full_name} created successfully with email {email}."
-    
-    return '''
-        <form method="post">
-            <label for="first_name">First Name:</label>
-            <input type="text" id="first_name" name="first_name"><br><br>
+    global CERTS
+    if CERTS is None:
+        response = requests.get(
+            'https://www.gstatic.com/iap/verify/public_key'
+        )
+        CERTS = response.json()
+    return CERTS
 
-            <label for="last_name">Last Name:</label>
-            <input type="text" id="last_name" name="last_name"><br><br>
+def get_metadata(item_name):
+    """Returns a string with the project metadata value for the item_name.
+    See https://cloud.google.com/compute/docs/storing-retrieving-metadata for
+    possible item_name values.
+    """
+    import requests
 
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email"><br><br>
+    endpoint = 'http://metadata.google.internal'
+    path = '/computeMetadata/v1/project/'
+    path += item_name
+    response = requests.get(
+        '{}{}'.format(endpoint, path),
+        headers={'Metadata-Flavor': 'Google'}
+    )
+    metadata = response.text
+    return metadata
 
-            <input type="submit" value="Create Project">
-        </form>
-    '''
+def audience():
+    """Returns the audience value (the JWT 'aud' property) for the current
+    running instance. Since this involves a metadata lookup, the result is
+    cached when first requested for faster future responses.
+    """
+    global AUDIENCE
+    if AUDIENCE is None:
+        project_number = get_metadata('numeric-project-id')
+        project_id = get_metadata('project-id')
+        AUDIENCE = '/projects/{}/apps/{}'.format(
+            project_number, project_id
+        )
+    return AUDIENCE
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+def validate_assertion(assertion):
+    """Checks that the JWT assertion is valid (properly signed, for the
+    correct audience) and if so, returns strings for the requesting user's
+    email and a persistent user ID. If not valid, returns None for each field.
+    """
+    from jose import jwt
+
+    try:
+        info = jwt.decode(
+            assertion,
+            certs(),
+            algorithms=['ES256'],
+            audience=audience()
+            )
+        return info['email'], info['sub']
+    except Exception as e:
+        print('Failed to validate assertion: {}'.format(e), file=sys.stderr)
+        return None, None
+
+@app.route('/', methods=['GET'])
+def say_hello():
+    from flask import request
+
+    assertion = request.headers.get('X-Goog-IAP-JWT-Assertion')
+    email, id = validate_assertion(assertion)
+    page = "<h1>Hello {}</h1>".format(email)
+    return page
